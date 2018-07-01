@@ -125,6 +125,10 @@ public class Quest {
 						q.getCurrentStage(this).finishEvent.fire(q, this);
 					}
 					setStage(q, q.currentQuests.get(this) + 1);
+					/*
+					 * yzh update
+					 */
+					q.saveData();
 				} catch (InvalidStageException e) {
 					e.printStackTrace();
 				}

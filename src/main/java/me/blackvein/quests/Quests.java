@@ -41,6 +41,9 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.logging.Level;
 
+import com.mengcraft.simpleorm.MongoWrapper;
+import com.mengcraft.simpleorm.ORM;
+import com.mongodb.MongoTimeoutException;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
@@ -165,6 +168,14 @@ public class Quests extends JavaPlugin implements ConversationAbandonedListener 
 
 	@Override
 	public void onEnable() {
+		MongoWrapper mongoWrapper = ORM.globalMongoWrapper();
+		try {
+			mongoWrapper.ping();
+			Mongo.setMongoWrapper(mongoWrapper);
+		} catch (MongoTimeoutException e) {
+			System.out.println("!!! mongodb connection refused");
+		}
+
 		pListener = new PlayerListener(this);
 		effListener = new NpcEffectThread(this);
 		npcListener = new NpcListener(this);
@@ -959,56 +970,52 @@ public class Quests extends JavaPlugin implements ConversationAbandonedListener 
 				cs.sendMessage(ChatColor.RED + Lang.get("inputNum"));
 				return;
 			}
-			Thread thread = new Thread(new Runnable() {
-
-				@Override
-				public void run() {
-					File questerFolder = new File(getDataFolder(), "data");
-					if (questerFolder.exists() && questerFolder.isDirectory()) {
-						FileConfiguration data = new YamlConfiguration();
-						File[] files = questerFolder.listFiles();
-						int failCount = 0;
-						boolean suppressed = false;
-						if (files != null) {
-							for (File f : files) {
-								try {
-									data.load(f);
-									data.set("quest-points", amount);
-									data.save(f);
-								} catch (IOException e) {
-									if (failCount < 10) {
-										String msg = Lang.get("errorReading");
-										msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
-										cs.sendMessage(ChatColor.RED + msg);
-										failCount++;
-									} else if (suppressed == false) {
-										String msg = Lang.get("errorReadingSuppress");
-										msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
-										cs.sendMessage(ChatColor.RED + msg);
-										suppressed = true;
-									}
-								} catch (InvalidConfigurationException e) {
-									if (failCount < 10) {
-										String msg = Lang.get("errorReading");
-										msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
-										cs.sendMessage(ChatColor.RED + msg);
-										failCount++;
-									} else if (suppressed == false) {
-										String msg = Lang.get("errorReadingSuppress");
-										msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
-										cs.sendMessage(ChatColor.RED + msg);
-										suppressed = true;
-									}
+			Thread thread = new Thread(() -> {
+				File questerFolder = new File(getDataFolder(), "data");
+				if (questerFolder.exists() && questerFolder.isDirectory()) {
+					FileConfiguration data = new YamlConfiguration();
+					File[] files = questerFolder.listFiles();
+					int failCount = 0;
+					boolean suppressed = false;
+					if (files != null) {
+						for (File f : files) {
+							try {
+								data.load(f);
+								data.set("quest-points", amount);
+								data.save(f);
+							} catch (IOException e) {
+								if (failCount < 10) {
+									String msg = Lang.get("errorReading");
+									msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
+									cs.sendMessage(ChatColor.RED + msg);
+									failCount++;
+								} else if (suppressed == false) {
+									String msg = Lang.get("errorReadingSuppress");
+									msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
+									cs.sendMessage(ChatColor.RED + msg);
+									suppressed = true;
+								}
+							} catch (InvalidConfigurationException e) {
+								if (failCount < 10) {
+									String msg = Lang.get("errorReading");
+									msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
+									cs.sendMessage(ChatColor.RED + msg);
+									failCount++;
+								} else if (suppressed == false) {
+									String msg = Lang.get("errorReadingSuppress");
+									msg = msg.replaceAll("<file>", ChatColor.DARK_AQUA + f.getName() + ChatColor.RED);
+									cs.sendMessage(ChatColor.RED + msg);
+									suppressed = true;
 								}
 							}
 						}
-						cs.sendMessage(ChatColor.GREEN + Lang.get("done"));
-						String msg = Lang.get("allQuestPointsSet");
-						msg = msg.replaceAll("<number>", ChatColor.AQUA + "" + amount + ChatColor.GOLD);
-						getServer().broadcastMessage(ChatColor.YELLOW + "" + ChatColor.GOLD + msg);
-					} else {
-						cs.sendMessage(ChatColor.RED + Lang.get("errorDataFolder"));
 					}
+					cs.sendMessage(ChatColor.GREEN + Lang.get("done"));
+					String msg = Lang.get("allQuestPointsSet");
+					msg = msg.replaceAll("<number>", ChatColor.AQUA + "" + amount + ChatColor.GOLD);
+					getServer().broadcastMessage(ChatColor.YELLOW + "" + ChatColor.GOLD + msg);
+				} else {
+					cs.sendMessage(ChatColor.RED + Lang.get("errorDataFolder"));
 				}
 			});
 			cs.sendMessage(ChatColor.YELLOW + Lang.get("settingAllQuestPoints"));
@@ -2022,7 +2029,7 @@ public class Quests extends JavaPlugin implements ConversationAbandonedListener 
 					return quester;
 				}
 			}
-			if (quester.loadData() == true) {
+			if (quester.loadData()) {
 				questers.put(id, quester);
 			}
 		}

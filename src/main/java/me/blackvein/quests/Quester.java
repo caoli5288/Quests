@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import me.blackvein.quests.util.Reflector;
+import me.blackvein.quests.util.Tuple;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.DyeColor;
@@ -52,6 +54,8 @@ import me.blackvein.quests.util.Lang;
 import me.blackvein.quests.util.MiscUtil;
 import net.citizensnpcs.api.npc.NPC;
 import net.milkbowl.vault.item.Items;
+
+import static me.blackvein.quests.util.Tuple.tuple;
 
 public class Quester {
 
@@ -1407,7 +1411,7 @@ public class Quester {
 	public void addEmptiesFor(Quest quest, int stage) {
 		QuestData data = new QuestData(this);
 		data.setDoJournalUpdate(false);
-		if (quest.getStage(stage).blocksToBreak.isEmpty() == false) {
+		if (!quest.getStage(stage).blocksToBreak.isEmpty()) {
 			for (ItemStack i : quest.getStage(stage).blocksToBreak) {
 				if (data.blocksBroken.indexOf(i) != -1) {
 					ItemStack temp = new ItemStack(i.getType(), 0, i.getDurability());
@@ -1418,7 +1422,7 @@ public class Quester {
 				}
 			}
 		}
-		if (quest.getStage(stage).blocksToDamage.isEmpty() == false) {
+		if (!quest.getStage(stage).blocksToDamage.isEmpty()) {
 			for (ItemStack i : quest.getStage(stage).blocksToDamage) {
 				if (data.blocksDamaged.indexOf(i) != -1) {
 					ItemStack temp = new ItemStack(i.getType(), 0, i.getDurability());
@@ -1429,7 +1433,7 @@ public class Quester {
 				}
 			}
 		}
-		if (quest.getStage(stage).blocksToPlace.isEmpty() == false) {
+		if (!quest.getStage(stage).blocksToPlace.isEmpty()) {
 			for (ItemStack i : quest.getStage(stage).blocksToPlace) {
 				if (data.blocksPlaced.indexOf(i) != -1) {
 					ItemStack temp = new ItemStack(i.getType(), 0, i.getDurability());
@@ -1625,6 +1629,11 @@ public class Quester {
 
 	public void saveData() {
 		FileConfiguration data = getBaseData();
+		if (Mongo.isEnabled()) {
+			System.out.println("!!! save to mongodb");
+			Mongo.saveQuest(id, data.saveToString());
+			return;
+		}
 		try {
 			data.save(new File(plugin.getDataFolder(), "data" + File.separator + id + ".yml"));
 		} catch (IOException e) {
@@ -1949,20 +1958,26 @@ public class Quester {
 
 	public boolean loadData() {
 		FileConfiguration data = new YamlConfiguration();
-		try {
-			File dataFile = new File(plugin.getDataFolder(), "data" + File.separator + id.toString() + ".yml");
-			if (dataFile.exists() == false) {
-				OfflinePlayer p = getOfflinePlayer();
-				dataFile = new File(plugin.getDataFolder(), "data" + File.separator + p.getName() + ".yml");
-				if (dataFile.exists() == false) {
-					return false;
-				}
+		if (Mongo.isEnabled()) {
+			System.out.println("!!! load mongodb");
+			Map<String, Object> map = Mongo.loadQuest(id);
+			if (!(map == null)) {
+				Reflector.invoke(data, "convertMapsToSections", tuple(Map.class, map), tuple(ConfigurationSection.class, data));
 			}
-			data.load(dataFile);
-		} catch (IOException e) {
-			return false;
-		} catch (InvalidConfigurationException e) {
-			return false;
+		} else {
+			try {
+				File dataFile = new File(plugin.getDataFolder(), "data" + File.separator + id.toString() + ".yml");
+				if (!dataFile.exists()) {
+					OfflinePlayer p = getOfflinePlayer();
+					dataFile = new File(plugin.getDataFolder(), "data" + File.separator + p.getName() + ".yml");
+					if (!dataFile.exists()) {
+						return false;
+					}
+				}
+				data.load(dataFile);
+			} catch (IOException | InvalidConfigurationException e) {
+				return false;
+			}
 		}
 		hardClear();
 		if (data.contains("completedRedoableQuests")) {

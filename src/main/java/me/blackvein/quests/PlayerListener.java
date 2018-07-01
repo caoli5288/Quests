@@ -53,6 +53,7 @@ import org.bukkit.event.player.PlayerFishEvent.State;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -643,11 +644,16 @@ public class PlayerListener implements Listener {
 	}
 
 	@EventHandler
+	public void onLogin(PlayerLoginEvent event) {
+		plugin.questers.remove(event.getPlayer().getUniqueId());
+	}
+
+	@EventHandler
 	public void onPlayerJoin(PlayerJoinEvent evt) {
-		if (plugin.checkQuester(evt.getPlayer().getUniqueId()) == false) {
+		if (!plugin.checkQuester(evt.getPlayer().getUniqueId())) {
 			Quester quester = new Quester(plugin);
 			quester.id = evt.getPlayer().getUniqueId();
-			if (new File(plugin.getDataFolder(), "data" + File.separator + quester.id + ".yml").exists()) {
+			if (Mongo.isEnabled() || new File(plugin.getDataFolder(), "data" + File.separator + quester.id + ".yml").exists()) {
 				quester.loadData();
 			} else if (plugin.genFilesOnJoin) {
 				quester.saveData();
